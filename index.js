@@ -3,6 +3,7 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const cors = require('cors');
 const app = express();
 require('dotenv').config()
+var jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000
 
 // midleware
@@ -27,11 +28,18 @@ async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
         await client.connect();
-
         const roomCollection = client.db('BuildingDB').collection('rooms')
         const bookingCollection = client.db('BuildingDB').collection('booking')
         const annouchmentCollection=client.db('BuildingDB').collection('annouchment')
         const userCollection=client.db('BuildingDB').collection('users')
+        
+
+        // create token
+        app.post('/jwt',async(req,res)=>{
+            const user=req.body;
+            const token=jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'1H'})
+            res.send(token)
+        })
 
 
         app.get('/rooms',async(req,res)=>{
