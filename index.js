@@ -1,10 +1,11 @@
 const express = require('express');
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId, Timestamp } = require('mongodb');
 const cors = require('cors');
 const app = express();
 require('dotenv').config()
 var jwt = require('jsonwebtoken');
-const port = process.env.PORT || 5000
+const port = process.env.PORT || 5000;
+// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
 // midleware
 app.use(cors())
@@ -30,78 +31,138 @@ async function run() {
         await client.connect();
         const roomCollection = client.db('BuildingDB').collection('rooms')
         const bookingCollection = client.db('BuildingDB').collection('booking')
-        const annouchmentCollection=client.db('BuildingDB').collection('annouchment')
-        const userCollection=client.db('BuildingDB').collection('users')
-        
+        const annouchmentCollection = client.db('BuildingDB').collection('annouchment')
+        const userCollection = client.db('BuildingDB').collection('users')
+
 
         // create token
-        app.post('/jwt',async(req,res)=>{
-            const user=req.body;
-            const token=jwt.sign(user,process.env.ACCESS_TOKEN_SECRET,{expiresIn:'1H'})
-            res.send(token)
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
+            res.send({token})
         })
+        // midleware 
+        const verifyToken = (req, res, next) => {
+            console.log('inside verify token', req.headers.authorization)
+            if (!req.headers.authorization) {
+                return res.status(401).send({ message: 'unauthorized access' })
+            }
+            const token = req.headers.authorization.split(' ')[1];
+            // decoding token verify
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).send({ message: 'unauthorized access' })
+                }
+                req.decoded = decoded;
+                next()
+            })
+            // next();
+        }
 
 
-        app.get('/rooms',async(req,res)=>{
+        // save a user data in db
+        app.put('/users',async (req, res) => {
+            const user = req.body;
+            // console.log(user,'user here')
+            // chack if user already exist
+            const isExist =await userCollection.findOne({ email: user?.email })
+            if (isExist) {
+                return res.send({ message: 'user already exists', insetedId: null })
+            }
+            const options={upsert:true}
+            const query={email:user?.email}
+            const updateDoc={
+                $set:{
+                    ...user,
+                    Timestamp:Date.now()
+                }
+            }
+            const result=await userCollection.updateOne(query,updateDoc,options)
+            res.send(result);
+        })
+        app.patch('/users/:email',async(req,res)=>{
+            const email=req.params.email;
+            const query={email:email}
+            const updateDoc={
+                $set:{
+                    role:'member'
+                }
+            }
+            const result=await userCollection.updateOne(query,updateDoc)
+            res.send(result);
+        })
+        
+        // get all user data from database
+        app.get('/users',verifyToken,async(req,res)=>{
             const query=req.body;
-            const result=await roomCollection.find(query).toArray()
-            res.send(result)
+            const result=await userCollection.find(query).toArray();
+            res.send(result);
         })
-        // deleted rooms info
-        app.delete('/rooms/:id',async(req,res)=>{
-            const id=req.params.id;
-            const query={_id:new ObjectId(id)}
-            const result=await roomCollection.deleteOne(query)
+        
+        // get user info by email from db
+        app.get('/users/:email',async(req,res)=>{
+            const email=req.params.email;
+            const result=await userCollection.findOne({email})
             res.send(result);
         })
 
+
+        app.get('/rooms', async (req, res) => {
+            const query = req.body;
+            const result = await roomCollection.find(query).toArray()
+            res.send(result)
+        })
+       
+
         // add booking data to the database  with agreement button
-        app.post('/booking',async(req,res)=>{
-            const room=req.body;
-            const result=await bookingCollection.insertOne(room)
+        app.post('/booking', async (req, res) => {
+            const room = req.body;
+            const result = await bookingCollection.insertOne(room)
             res.send(result)
         })
-        // get room data by email
-        // app.get('/booking', async (req, res) => {
-        //     const email=req.query.email;
-        //     const query={email:email}
-        //     console.log(query)
-        //     const result = await bookingCollection.find(query).toArray();
-        //     res.send(result);
-        // })
 
-        app.get('/booking', async(req,res)=>{
-            const user=req.body;
-            const result=await bookingCollection.find().toArray()
+        // get booking data useing email
+        app.get('/booking/:email',async(req,res)=>{
+            const email=req.params.email;
+            const query={email:email}
+            const result=await bookingCollection.findOne(query);
+            res.send(result);
+        })
+
+
+        app.get('/booking', async (req, res) => {
+            const user = req.body;
+            const result = await bookingCollection.find().toArray()
             res.send(result)
         })
-        app.delete('/booking/:id',async(req,res)=>{
-            const id=req.params.id;
-            const query={_id:new ObjectId(id)};
-            const result=await bookingCollection.deleteOne(query)
+        app.delete('/booking/:id', async (req, res) => {
+            const id = req.params.id;
+            const query = { _id: new ObjectId(id) };
+            const result = await bookingCollection.deleteOne(query)
             res.send(result)
         })
-     
+
         // annouchment related api
-        app.post('/annouchment',async(req,res)=>{
-            const data=req.body;
-            const result=await annouchmentCollection.insertOne(data)
+        app.post('/annouchment', async (req, res) => {
+            const data = req.body;
+            const result = await annouchmentCollection.insertOne(data)
             res.send(result)
         })
-
-        // users related api
-        app.post('/users',async(req,res)=>{
-            const user=req.body;
-            // insert email if user doesnot exist
-            const query={email:user.email}
-            const existingUser=await userCollection.findOne(query)
-            if(existingUser){
-                return res.send({message:'user already exists',insetedId:null})
-            }
-            const result= await userCollection.insertOne(user)
-            res.send(result)
+        // get annouchment from database
+        app.get('/annouchment',async(req,res)=>{
+            const notice=req.body;
+            const result=await annouchmentCollection.find().toArray();
+            res.send(result);
         })
 
+        // create payment intent
+        // app.post('/create-payment-intent',async(req,res)=>{
+        //     const {price}=req.body;
+        //     const amount=parseInt(price*100);
+        //     console.log(amount);
+        //     // create paymentIntent with the order amount and currency
+           
+        // })
 
 
         // Send a ping to confirm a successful connection
