@@ -5,7 +5,7 @@ const app = express();
 require('dotenv').config()
 var jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000;
-// const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY)
 
 // midleware
 app.use(cors())
@@ -28,11 +28,12 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
         // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         const roomCollection = client.db('BuildingDB').collection('rooms')
         const bookingCollection = client.db('BuildingDB').collection('booking')
         const annouchmentCollection = client.db('BuildingDB').collection('annouchment')
         const userCollection = client.db('BuildingDB').collection('users')
+        const paymentCollection = client.db('BuildingDB').collection('payments')
 
 
         // create token
@@ -57,6 +58,17 @@ async function run() {
                 next()
             })
             // next();
+        }
+        // use verify admin after verify token
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const isAdmin = user?.role === 'admin'
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
         }
 
 
@@ -93,7 +105,7 @@ async function run() {
         })
         
         // get all user data from database
-        app.get('/users',verifyToken,async(req,res)=>{
+        app.get('/users',async(req,res)=>{
             const query=req.body;
             const result=await userCollection.find(query).toArray();
             res.send(result);
@@ -156,14 +168,34 @@ async function run() {
         })
 
         // create payment intent
-        // app.post('/create-payment-intent',async(req,res)=>{
-        //     const {price}=req.body;
-        //     const amount=parseInt(price*100);
-        //     console.log(amount);
-        //     // create paymentIntent with the order amount and currency
-           
-        // })
+        app.post('/create-payment-intent', async(req,res)=>{
+            const {price}=req.body;
+            const amount=parseInt(price*100);
+            console.log(amount);
+            // create paymentIntent with the order amount and currency
+            const paymentIntent=await stripe.paymentIntents.create({
+                amount:amount,
+                currency: "usd",
+                payment_method_types:['card']
+            });
 
+            res.send({
+                clientSecret: paymentIntent.client_secret,
+            })
+           
+        })
+
+        app.post('/payments',async(req,res)=>{
+            const payment=req.body;
+            const result=await paymentCollection.insertOne(payment);
+            console.log('payment info',payment)
+            res.send(result)
+        })
+    //    get payment data
+       app.get('/payments',async(req,res)=>{
+        const result= await paymentCollection.find().toArray();
+        res.send(result)
+       })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
