@@ -34,6 +34,7 @@ async function run() {
         const annouchmentCollection = client.db('BuildingDB').collection('annouchment')
         const userCollection = client.db('BuildingDB').collection('users')
         const paymentCollection = client.db('BuildingDB').collection('payments')
+        const couponCollection = client.db('BuildingDB').collection('coupons')
 
 
         // create token
@@ -197,6 +198,12 @@ async function run() {
         const result= await paymentCollection.find().toArray();
         res.send(result)
        })
+
+    //    coupon related api
+      app.get('/coupons',async(req,res)=>{
+        const result= await couponCollection.find().toArray();
+        res.send(result)
+      })
 
         // Send a ping to confirm a successful connection
         await client.db("admin").command({ ping: 1 });
