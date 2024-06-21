@@ -204,13 +204,13 @@ async function run() {
         const result= await couponCollection.find().toArray();
         res.send(result)
       })
-    // get specific data by id
-    // app.get('/coupons/:id',async(req,res)=>{
-    //     const id=req.params.id;
-    //     const query={_id:new ObjectId(id)}
-    //     const result=await couponCollection.findOne(query)
-    //     res.send(result)
-    // })
+    // post coupon data
+    app.post('/coupon',async(req,res)=>{
+        const data=req.body;
+        const result=await couponCollection.insertOne(data);
+        res.send(result);
+    })
+   
 
     //   delete coupon related api by id
       app.delete('/coupons/:id',async(req,res)=>{
