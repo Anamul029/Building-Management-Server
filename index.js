@@ -60,20 +60,17 @@ async function run() {
             // next();
         }
         // use verify admin after verify token
-        // const verifyAdmin = async (req, res, next) => {
-        //     const email = req.decoded.email;
-        //     const query = { email: email }
-        //     const user = await userCollection.findOne(query)
-        //     const isAdmin = user?.role === 'admin'
-        //     if (!isAdmin) {
-        //         return res.status(403).send({ message: 'forbidden access' })
-        //     }
-        //     next();
-        // }
-        const verifyAdmin=async(req,res,next)=>{
-            const email=req.decoded.email;
-            const query={email:email}
+        const verifyAdmin = async (req, res, next) => {
+            const email = req.decoded.email;
+            const query = { email: email }
+            const user = await userCollection.findOne(query)
+            const isAdmin = user?.role === 'admin'
+            if (!isAdmin) {
+                return res.status(403).send({ message: 'forbidden access' })
+            }
+            next();
         }
+      
 
 
         // save a user data in db
